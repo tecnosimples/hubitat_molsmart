@@ -1,0 +1,18 @@
+{
+  "author": "TecnoSimples Tecnologia LTDA",
+  "gitHubUrl": "https://github.com/tecnosimples/hubitat_molsmart",
+  "payPalUrl": "",
+  "packages": [
+    {
+      "name": "MolSmart Relay TCP",
+      "category": "Integrations",
+      "location": "https://raw.githubusercontent.com/tecnosimples/hubitat_molsmart/main/packageManifest.json",
+      "description": "Driver local (TCP) para os módulos de relé MolSmart de 2 a 32 canais: relés, entradas e botões. Fork TecnoSimples do driver de VH, licença Apache 2.0.",
+      "tags": [
+        "MolSmart",
+        "Local",
+        "Integrations"
+      ]
+    }
+  ]
+}

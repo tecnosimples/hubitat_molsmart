@@ -1,0 +1,17 @@
+{
+  "packageName": "MolSmart GW8",
+  "author": "TecnoSimples Tecnologia LTDA",
+  "version": "1.8",
+  "minimumHEVersion": "2.3.0",
+  "dateReleased": "2026-09-22",
+  "licenseFile": "https://raw.githubusercontent.com/tecnosimples/hubitat_molsmart/main/LICENSE",
+  "drivers": [
+    {
+      "id": "d8f7ea40-5515-4f0a-8134-36248ca2afb3",
+      "name": "MolSmart - GW8 - AC (learning)",
+      "namespace": "TRATO",
+      "location": "https://raw.githubusercontent.com/tecnosimples/hubitat_molsmart/main/GW8/IR/AC(Learning)/Hubitat_TRATO_MolSmart_GW8_IR_AC(learning).groovy",
+      "required": true
+    }
+  ]
+}

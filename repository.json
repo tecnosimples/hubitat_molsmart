@@ -7,7 +7,7 @@
       "name": "MolSmart GW8",
       "category": "Integrations",
       "location": "https://raw.githubusercontent.com/tecnosimples/hubitat_molsmart/main/GW8/IR/AC(Learning)/packageManifest.json",
-      "description": "Drivers para o gateway infravermelho MolSmart GW8 (8 canais). Fork TecnoSimples dos drivers de VH, licença Apache 2.0.",
+      "description": "Drivers e app para o gateway MolSmart GW8: ar-condicionado por infravermelho (learning) e cortinas RF, componentes opcionais. Fork TecnoSimples dos drivers de VH, licença Apache 2.0.",
       "tags": [
         "MolSmart",
         "Local",

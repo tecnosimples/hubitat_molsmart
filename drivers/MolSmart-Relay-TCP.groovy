@@ -15,7 +15,7 @@
  * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
  * for the specific language governing permissions and limitations under the License.
  *
- * Versão do pacote: 1.3.2
+ * Versão do pacote: 1.3.3
  *
  * Versões TecnoSimples:
  *   TS-1.0.0  20/07/2026  Fork do VH 3.6
@@ -122,7 +122,7 @@ input(name: "secPorEntrada", type: "hidden", title: "<hr><i>Os campos por canal 
 
 @Field static java.util.Random _rng = new java.util.Random()
 @Field static final String TCP_TERMINATOR = "NONE"
-@Field static final String DRIVER_VERSION = "TS-1.3.2"
+@Field static final String DRIVER_VERSION = "TS-1.3.3"
 
 
 @Field static final int MAX_CHANNELS = 32
@@ -1128,7 +1128,8 @@ if (ch <= 0){ logWar("Canais ainda não detectados; não criarei relays."); retu
 String num = n.toString().padLeft(2,'0')
 String dni = childRelayDni(n)
 String legacyDni = "${device.id}-Switch-${num}"
-def legacyChild = getChildDevice(legacyDni)
+
+def legacyChild = (legacyDni != dni) ? getChildDevice(legacyDni) : null
 if (legacyChild){
 
 
@@ -1163,7 +1164,8 @@ if (ch <= 0){ logWar("Canais ainda não detectados; não criarei inputs."); retu
 String num = n.toString().padLeft(2,'0')
 String dni = childInputDni(n)
 String legacyDni = "${device.id}-Input-${num}"
-def legacyChild = getChildDevice(legacyDni)
+
+def legacyChild = (legacyDni != dni) ? getChildDevice(legacyDni) : null
 if (legacyChild){
 
 

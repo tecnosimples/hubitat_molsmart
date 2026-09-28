@@ -15,7 +15,7 @@
  * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
  * for the specific language governing permissions and limitations under the License.
  *
- * Versão do pacote: 1.3.3
+ * Versão do pacote: 1.3.4
  *
  * Versões TecnoSimples:
  *   TS-1.0.0  20/07/2026  Fork do VH 3.6
@@ -122,7 +122,7 @@ input(name: "secPorEntrada", type: "hidden", title: "<hr><i>Os campos por canal 
 
 @Field static java.util.Random _rng = new java.util.Random()
 @Field static final String TCP_TERMINATOR = "NONE"
-@Field static final String DRIVER_VERSION = "TS-1.3.3"
+@Field static final String DRIVER_VERSION = "TS-1.3.4"
 
 
 @Field static final int MAX_CHANNELS = 32
@@ -180,6 +180,21 @@ private void logErr(msg){ log.error("${device.displayName ?: device.name}: ${msg
  
 private void markRxNow() { state.lastRx = now(); sendEvent(name:"lastRx", value: state.lastRx) }
 private int clampInt(v,l,h){ Math.max(l as int, Math.min(h as int, (v ?: 0) as int)) }
+
+
+private int prefInt(String name, int dflt, int lo, int hi){
+def v = settings?."${name}"
+if (v == null || (v instanceof CharSequence && !v.toString().trim())) return dflt
+try { return clampInt((v instanceof Number) ? v : new BigDecimal(v.toString().trim()), lo, hi) } 
+catch (e) { logWar("Preferência ${name} inválida (${v}); usando ${dflt}"); return dflt }
+}
+
+
+
+private def childOrNull(String dni){
+try { return getChildDevice(dni) }
+catch (e) { logWar("filho ${dni} indisponível neste frame (${e})"); return null } 
+}
 private String netIdPrefix() { state.netids ?: (state.netids = device.deviceNetworkId ?: device.id.toString()) }
 private String inPrefix() { state.inNetIds ?: (state.inNetIds = netIdPrefix()+"IN") }
 private String resolveIP(){ String ip = settings?.ipAddress ?: settings?.device_IP_address ?: state?.ipAddress ?: state?.ipaddress; return ip?.trim() }
@@ -318,7 +333,7 @@ String base = "Placa voltou com todos os relés desligados após ${Math.round(ga
 Map cmds = (state.lastCmd ?: [:]) as Map
 List<Integer> alvo = parseChannelList(settings?.restoreChannels as String, MAX_CHANNELS).findAll{ it <= ch && wantOn(it, cmds, kids, lastRx) }
 if (!alvo){ logWar(base); return }
-int maxMin = clampInt(settings?.restoreMaxMin ?: 30, 1, 1440)
+int maxMin = prefInt("restoreMaxMin", 30, 1, 1440)
 if (gapMs > maxMin * 60000L){
 
 logWar("Placa voltou com todos os relés desligados após ${(long) Math.ceil(gapMs / 60000d)} min sem comunicação (limite ${maxMin}) — não religado: ${alvo.join(',')}")
@@ -381,7 +396,7 @@ return clampInt(ov, 0, 10000)
 
 logWar("ch${idx} qualify inválido (${ov}); herdando o global")
 try {
-return clampInt(settings?.contactQualifyMs, 0, 10000)
+return prefInt("contactQualifyMs", 0, 0, 10000)
 } catch (e2) {
 
 
@@ -395,7 +410,7 @@ return 0
 
 private String buildContactQualifyString(){
 try {
-int g = clampInt(settings?.contactQualifyMs, 0, 10000)
+int g = prefInt("contactQualifyMs", 0, 0, 10000)
 StringBuilder sb = new StringBuilder(g.toString())
 int maxCh = (state?.inputcount ?: 0) as int
 for (int i = 1; i <= maxCh; i++){
@@ -407,7 +422,7 @@ return sb.toString()
 } catch (e) {
 logWar("buildContactQualifyString falhou: ${e}")
 try {
-return clampInt(settings?.contactQualifyMs, 0, 10000).toString()
+return prefInt("contactQualifyMs", 0, 0, 10000).toString()
 } catch (e2) {
 return "0"
 }
@@ -503,6 +518,8 @@ initialize()
 def uninstalled(){ unschedule(); disconnectSocket() }
 def initialize(){
 logInf("Initialize")
+state.syncRetry = 0 
+unschedule("retrySyncChildren") 
 state.reconnecting = false 
 initRxStats() 
 state.remove("prunePlan") 
@@ -546,7 +563,7 @@ publishStuckAttributeUnconditional()
 sendEvent(name:"numberOfButtons", value: ch)
 state.lastButtons = ch
 
-try { syncChildren(ch) } catch (e) { logWar("syncChildren falhou: ${e}") }
+try { syncChildren(ch) } catch (e) { scheduleSyncRetry(e) } 
 connectSocket()
 try { scanFrozen("initialize") } catch (e) { logWar("varredura de congelados falhou: ${e}") }
 runIn(2, "queryBoardStatus", [overwrite:true])
@@ -556,7 +573,7 @@ if (settings?.logEnable) runIn(1800, "logsOff", [overwrite:true])
  
 private void schedulePwrPolling(){
 try{ unschedule('pwrPollTick') } catch(e){}
-Integer sec = (settings?.pwrPollSec ?: 60) as Integer
+Integer sec = prefInt("pwrPollSec", 60, 5, 3600)
 if (!(settings?.enablePwrMonitor)){
 logDbg("Monitoramento de voltagem desabilitado.")
 return
@@ -568,7 +585,7 @@ runIn(sec, 'pwrPollTick', [overwrite:true])
 def pwrPollTick(){
 if (!(settings?.enablePwrMonitor)) return
 doAsyncPwrQuery()
-Integer sec = (settings?.pwrPollSec ?: 60) as Integer
+Integer sec = prefInt("pwrPollSec", 60, 5, 3600)
 if (sec < 5) sec = 5
 runIn(sec, 'pwrPollTick', [overwrite:true])
 }
@@ -675,7 +692,7 @@ scheduleReconnect("connect error")
 
 private void markSocketOffline(){ state.socketOnline=false; forgetFrameCount(); unschedule("heartbeat"); unschedule("doRestore"); unschedule("verifyRestore"); sendEvent(name:"online", value:"false") } 
 private void disconnectSocket(){ markSocketOffline(); try { interfaces.rawSocket.close() } catch(ignored){} }
-private void scheduleHeartbeat(){ int s = clampInt(settings?.hbInterval,5,120); runIn(s, "heartbeat", [overwrite:true]) }
+private void scheduleHeartbeat(){ int s = prefInt("hbInterval", 15, 5, 120); runIn(s, "heartbeat", [overwrite:true]) }
 def heartbeat(){ txRaw("00", "HB"); scheduleHeartbeat() }
 private void scheduleWatchdog(){ runIn(5, "connectionCheck", [overwrite:true]) }
 private void scheduleReconcile(){ runIn(60, "reconcileRelayStates", [overwrite:true]) }
@@ -706,8 +723,8 @@ sendEvent(name:"switch", value: parentExpected)
 scheduleReconcile()
 }
 def connectionCheck(){
-int hb = clampInt(settings?.hbInterval,5,120)
-int userIdle = clampInt(settings?.idleTimeout,10,600)
+int hb = prefInt("hbInterval", 15, 5, 120)
+int userIdle = prefInt("idleTimeout", 60, 10, 600)
 int effIdle = Math.max(userIdle, hb*3)
 
 
@@ -730,8 +747,8 @@ if (state.reconnecting == true) return
 state.reconnecting = true
 int attempt = ((state.reconnectAttempt ?: 0) as int) + 1
 state.reconnectAttempt = attempt
-int minS = clampInt(settings?.reconnectMin,1,120)
-int maxS = clampInt(settings?.reconnectMax,5,600)
+int minS = prefInt("reconnectMin", 5, 1, 120)
+int maxS = prefInt("reconnectMax", 60, 5, 600)
 int delay = Math.min(maxS, (int)Math.pow(2D, Math.min(6,attempt-1)) * minS) + _rng.nextInt(Math.max(1, minS))
 logWar("Reconectar (#${attempt}) em ~${delay}s (${reason})")
 runIn(delay, "doReconnect", [overwrite:true])
@@ -816,7 +833,7 @@ if (state.rxFormatSeen != true) state.rxFormatSeen = true
 
 for (int i=0; i<ch; i++){
 String swDni = childRelayDni(i+1)
-def cd = getChildDevice(swDni)
+def cd = childOrNull(swDni)
 if (cd) cd.parse([[name:"switch", value: (rBits.charAt(i)=='1') ? "on" : "off"]])
 }
 
@@ -849,7 +866,7 @@ private void handleInputEventsAndContacts(String iBits, String iMask, int chan){
 if (!iBits || chan <= 0) return
 String prev = state.prevInputBits ?: ("1" * chan)
 if (prev.length() != iBits.length()) prev = ("1" * iBits.length())
-int debounce = clampInt(settings?.buttonDebounceMs, 0, 2000)
+int debounce = prefInt("buttonDebounceMs", 120, 0, 2000)
 boolean activeLow = (settings?.inputsActiveLow != false)
 boolean normalOpen = (settings?.inputsNormalOpen != false)
 long nowMs = now()
@@ -937,7 +954,7 @@ qualPressed = efetivo
 String contactState = qualPressed ? (normalOpen ? "closed" : "open")
 : (normalOpen ? "open" : "closed")
 String inDni = childInputDni(idx)
-def inChild = getChildDevice(inDni)
+def inChild = childOrNull(inDni)
 if (inChild){
 if (inChild.currentValue("contact") != contactState){
 inChild.sendEvent(name:"contact", value: contactState)
@@ -1307,6 +1324,25 @@ default: return s
 }
 private static String escapePrint(String s){
 return (s ?: "").replace("\r","\\r").replace("\n","\\n")
+}
+
+
+private void scheduleSyncRetry(e){
+int n = ((state.syncRetry ?: 0) as int) + 1
+state.syncRetry = n
+if (n > 3){ logWar("syncChildren falhou (${e}) — 3 tentativas esgotadas; use Initialize"); return }
+int delay = 10 + _rng.nextInt(21)
+logWar("syncChildren falhou (${e}) — nova tentativa ${n}/3 em ${delay}s")
+runIn(delay, "retrySyncChildren", [overwrite:true])
+}
+def retrySyncChildren(){
+int ch = (state?.inputcount ?: 0) as int
+if (ch <= 0) return
+try {
+syncChildren(ch)
+logInf("syncChildren concluído na tentativa ${state.syncRetry}")
+state.syncRetry = 0
+} catch (e) { scheduleSyncRetry(e) }
 }
  
 private void syncChildren(int ch){

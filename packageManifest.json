@@ -1,7 +1,7 @@
 {
   "packageName": "MolSmart Relay TCP",
   "author": "TecnoSimples Tecnologia LTDA",
-  "version": "1.3.3",
+  "version": "1.3.4",
   "minimumHEVersion": "2.3.0",
   "dateReleased": "2026-09-28",
   "licenseFile": "https://raw.githubusercontent.com/tecnosimples/hubitat_molsmart/main/LICENSE",

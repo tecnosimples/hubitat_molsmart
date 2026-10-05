@@ -15,7 +15,7 @@
  * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
  * for the specific language governing permissions and limitations under the License.
  *
- * Versão do pacote: 1.3.4
+ * Versão do pacote: 1.3.5
  *
  * Versões TecnoSimples:
  *   TS-1.0.0  20/07/2026  Fork do VH 3.6
@@ -47,6 +47,7 @@ capability "Switch"
 command "detectAndSyncChannels"
 command "setChannelName", [[name:"channel*", type:"NUMBER", description:"Número do relé"], [name:"name*", type:"STRING", description:"Novo nome do relé"]]
 command "sendRebootLAN"
+command "vincularPlaca"
 attribute "driverVersion", "string"
 attribute "lastHeld", "number"
 attribute "lastPushed", "number"
@@ -59,12 +60,14 @@ attribute "Entrada12V-2", "text"
 attribute "contactQualify", "string" 
 attribute "contactQualifyStuck", "string" 
 attribute "syncStatus", "string" 
+attribute "vinculoPlaca", "string" 
+attribute "ultimaTrocaIp", "string" 
 }
 preferences {
 input(name: "secAjuda", type: "hidden", title: helpHtml())
 input(name: "secConexao", type: "hidden", title: "<hr><b>Conexão</b>")
 input(name: "ipAddress", type: "text", title: "IP da placa", required: true,
-description: 'Endereço da placa MolSmart na rede. Use IP fixo (reserva no roteador): se o IP mudar, o driver perde a placa. Ao salvar, o driver conecta e descobre quantos canais a placa tem; se os dispositivos não aparecerem, confira o IP e use Detect And Sync Channels.')
+description: 'Endereço da placa MolSmart na rede. O dispositivo fica preso à placa pelo número de série: se o IP dela mudar, o driver a reencontra sozinho e atualiza este campo. A reserva de IP no roteador continua recomendada. Para trocar a placa por outra: mude o IP aqui e salve; se a placa nova ficou no mesmo IP, use o botão Vincular Placa. Ao salvar, o driver conecta e descobre quantos canais a placa tem; se os dispositivos não aparecerem, confira o IP e use Detect And Sync Channels.')
 input(name: "ipPort", type: "number", title: "Porta TCP da placa", defaultValue: 502, range: "1..65535",
 description: 'Padrão 502. Só mude se a placa foi configurada com outra porta.')
 input(name: "hbInterval", type: "number", title: "Intervalo de verificação da placa (s)", defaultValue: 15, range: "5..120", required: true,
@@ -103,6 +106,12 @@ input(name: "inputsActiveLow", type: "bool", title: "Entrada acionada = fechada 
 description: 'Define qual sinal elétrico conta como acionado. Desligar inverte também os botões. Para inverter só o sensor, use a opção "Sensor em repouso aparece como ABERTO".')
 input(name: "buttonDebounceMs", type: "number", title: "Anti-repique dos botões (ms)", defaultValue: 120, range: "0..2000",
 description: 'Ignora um segundo toque no mesmo botão que chegue antes deste tempo (padrão 120 ms), para um toque não contar duas vezes. 0 = desligado. Vale só para os eventos de botão (apertado/segurado); não afeta o sensor de contato — para ele, use o tempo de confirmação.')
+input(name: "autoFindBoard", type: "bool", title: "Vincular à placa pelo número de série e reencontrá-la se o IP mudar", defaultValue: true,
+description: 'Ligado (padrão): o driver só conecta depois de a placa confirmar o número de série, e, se ela mudar de IP, procura na rede e atualiza o IP sozinho. Desligado: volta a confiar só no IP — inclusive conectando em outra placa que assuma esse IP. Placas sem número de série funcionam como desligado.')
+input(name: "findAfterFails", type: "number", title: "Procurar a placa na rede depois de quantas tentativas sem resposta", defaultValue: 3, range: "1..20",
+description: 'Padrão 3. Vale quando a placa não responde no IP configurado.')
+input(name: "findEveryMin", type: "number", title: "Intervalo mínimo entre buscas (min)", defaultValue: 30, range: "5..1440",
+description: 'Padrão 30. Se a busca não achar a placa, a próxima só acontece depois deste tempo.')
 input(name: "logEnable", type: "bool", title: "Registrar detalhes técnicos no log (diagnóstico)", defaultValue: false,
 description: 'Desligado (padrão). Ligue só para investigar um problema: o log passa a mostrar cada mensagem trocada com a placa. Desliga sozinho 30 minutos depois de salvar. Avisos e erros aparecem sempre.')
 if (state?.inputcount) {
@@ -122,10 +131,24 @@ input(name: "secPorEntrada", type: "hidden", title: "<hr><i>Os campos por canal 
 
 @Field static java.util.Random _rng = new java.util.Random()
 @Field static final String TCP_TERMINATOR = "NONE"
-@Field static final String DRIVER_VERSION = "TS-1.3.4"
+@Field static final String DRIVER_VERSION = "TS-1.3.5"
 
 
 @Field static final int MAX_CHANNELS = 32
+@Field static final int GUARD_EXTRA_S = 45 
+
+@Field static final int FIND_WINDOW = 6 
+@Field static final long SCAN_LEASE_MS = 180000L 
+@Field static final long SEEN_FRESH_MS = 300000L 
+@Field static final String VINC_OK = "ok"
+@Field static final String VINC_OFF = "desligado"
+@Field static final String VINC_NOSN = "sem série"
+@Field static final String VINC_NOCONF = "sem confirmação — a placa não respondeu o número de série"
+@Field static final String VINC_WAIT = "aguardando a placa do IP novo responder"
+
+@Field static final java.util.concurrent.ConcurrentHashMap SCAN_LEASE = new java.util.concurrent.ConcurrentHashMap() 
+@Field static final java.util.concurrent.ConcurrentHashMap SEEN = new java.util.concurrent.ConcurrentHashMap() 
+@Field static final java.util.concurrent.ConcurrentHashMap SCAN_CNT = new java.util.concurrent.ConcurrentHashMap() 
 @Field static final int PRUNE_BATCH = 100 
 @Field static final int RX_LEFTOVER_MAX = 1024 
 @Field static final String SYNC_UNKNOWN = "canais desconhecidos — a placa não respondeu por HTTP; confira o IP"
@@ -142,11 +165,12 @@ input(name: "secPorEntrada", type: "hidden", title: "<hr><i>Os campos por canal 
 
 
 @Field static final String HELP_BODY_A = '''<p><b>Botões (aba Commands)</b> — os nomes ficam em inglês (o Hubitat não deixa traduzir)</p><ul>
-<li><b>Initialize</b> — Reconecta à placa e confere os canais, criando os dispositivos que faltarem. Também roda sozinho ao salvar e ao reiniciar o hub. Trocou a placa por outra no mesmo IP? Clique Save nas Preferences, não só Initialize.</li>
+<li><b>Initialize</b> — Reconecta à placa e confere os canais, criando os dispositivos que faltarem. Também roda sozinho ao salvar e ao reiniciar o hub. Trocou a placa por outra no mesmo IP? Use Vincular Placa.</li>
 <li><b>Refresh</b> — Pede agora o estado de todos os relés e entradas.</li>
 <li><b>On / Off</b> — Ligam ou desligam TODOS os relés da placa, um por vez (numa placa de 32, ~8 s), e conferem no fim. Com a trava das Preferences desligada, os botões continuam aparecendo, mas não fazem nada.</li>
 <li><b>Push / Hold</b> — Disparam o evento de botão do dispositivo principal (botão N apertado ou segurado, marcado como digital). Servem para testar regras que usam esse botão. Não mudam o sensor da entrada (Mol Input NN), não disparam regras ligadas a ele e não mexem na placa.</li>
-<li><b>Detect And Sync Channels</b> — ⚠️ Pode APAGAR dispositivos: se a placa tiver menos canais que antes, os dispositivos que sobraram são apagados, e isso quebra regras, painéis e integrações que os usam. Antes, o driver confere o número de canais pelas duas vias (HTTP e conexão TCP) e pede confirmação: o 1º clique só mostra em syncStatus o que seria apagado; espere alguns segundos, leia a lista e clique de novo em até 2 minutos para confirmar (um clique duplo rápido não confirma). Se algo não bater no 2º clique, nada é apagado e é preciso recomeçar. Durante a exclusão, novos cliques só mostram o andamento; Save ou Initialize interrompem uma exclusão em andamento, e o que já foi apagado não volta. Também cria os dispositivos que faltarem. O resultado de cada clique aparece em syncStatus.</li>
+<li><b>Detect And Sync Channels</b> — ⚠️ Pode APAGAR dispositivos: se a placa tiver menos canais que antes, os dispositivos que sobraram são apagados, e isso quebra regras, painéis e integrações que os usam. Antes, o driver confere o número de canais pelas duas vias (HTTP e conexão TCP) e pede confirmação: o 1º clique só mostra em syncStatus o que seria apagado; espere alguns segundos, leia a lista e clique de novo em até 2 minutos para confirmar (um clique duplo rápido não confirma). Se algo não bater no 2º clique, nada é apagado e é preciso recomeçar. Durante a exclusão, novos cliques só mostram o andamento; Save ou Initialize interrompem uma exclusão em andamento, e o que já foi apagado não volta. Também cria os dispositivos que faltarem. O resultado de cada clique aparece em syncStatus. Não troca a placa vinculada, e fica recusado enquanto a placa não for confirmada (veja vinculoPlaca).</li>
+<li><b>Vincular Placa</b> — Vincula este dispositivo à placa que está no IP configurado, pelo número de série dela. Use quando trocar uma placa queimada por outra no mesmo IP. Se a placa não responder o número de série, nada muda.</li>
 <li><b>Send Reboot LAN</b> — '''
 @Field static final String HELP_BODY_B = '''</li>
 <li><b>Set Channel Name</b> — Renomeia o relé N; é o mesmo que mudar o Device label na página dele.</li>
@@ -158,6 +182,8 @@ input(name: "secPorEntrada", type: "hidden", title: "<hr><i>Os campos por canal 
 <li><b>Switch</b> — Estado do On/Off geral: on só com todos os relés ligados, off só com todos desligados; misturado, fica o último.</li>
 <li><b>Pushed / Held / Last Pushed / Last Held</b> — Número da última entrada apertada ou segurada.</li>
 <li><b>syncStatus</b> — Resultado da sincronização de canais: ok; aviso de dispositivos acima do número de canais da placa (congelados, sem atualização), com o que impede apagá-los; recusa com o motivo; pedido de confirmação antes de apagar; andamento e resultado da exclusão.</li>
+<li><b>vinculoPlaca</b> — A que placa este dispositivo está preso. <i>ok</i> = a placa do IP configurado confirmou o número de série. <i>sem confirmação</i> = a placa não respondeu o número de série; o driver não conecta e tenta de novo sozinho (confira se a placa está ligada e na rede). <i>placa diferente neste IP</i> = quem está nesse IP é outra placa; o driver não conecta nem comanda, e procura a placa certa. Se a troca foi de propósito, use Vincular Placa. <i>procurando a placa</i> = busca na rede em andamento ou sem sucesso; repete sozinha. <i>aguardando a placa do IP novo responder</i> = você mudou o IP e a placa de lá ainda não respondeu. <i>sem série</i> = esta placa não informa número de série; o driver confia só no IP. <i>desligado</i> = recurso desligado nas Preferences (Avançado). Salvar as Preferences <b>sem mudar o IP</b> não troca a placa vinculada.</li>
+<li><b>ultimaTrocaIp</b> — Última vez que o driver achou a placa em outro IP e atualizou o endereço sozinho (IP antigo → novo, com data). Se aparecer, falta a reserva de IP no roteador.</li>
 <li><b>contactQualify</b> — Tempo de confirmação em uso. Ex.: 2000;7:0 = 2000 ms no geral, entrada 7 desligada.</li>
 <li><b>contactQualifyStuck</b> — ok = tudo certo. Números (ex.: 1,4) = entradas cujo sinal oscila demais ou nunca se confirma; o sensor delas fica congelado no último estado confirmado. Verifique o sensor ou zere o tempo de confirmação dessas entradas.</li>
 <li><b>Entrada12V-1 / -2</b> — Tensão da fonte da placa (só com a leitura de tensão ligada).</li>
@@ -199,6 +225,218 @@ private String netIdPrefix() { state.netids ?: (state.netids = device.deviceNetw
 private String inPrefix() { state.inNetIds ?: (state.inNetIds = netIdPrefix()+"IN") }
 private String resolveIP(){ String ip = settings?.ipAddress ?: settings?.device_IP_address ?: state?.ipAddress ?: state?.ipaddress; return ip?.trim() }
 private Integer resolvePort(){ (settings?.ipPort as Integer) ?: (settings?.device_port as Integer) ?: 502 }
+ 
+private boolean autoFindOn(){ settings?.autoFindBoard != false } 
+private String expectedSn(){ String s = (state.NumeroSerie ?: "").toString().trim(); return s ?: null }
+private boolean linkActive(){ autoFindOn() && expectedSn() != null }
+
+private void ensureBoundIp(){ if (expectedSn() != null && !state.boundIp){ String ip = resolveIP(); if (ip) state.boundIp = ip } }
+private void publishVinculo(String v){ if (state.vinc != v){ state.vinc = v; sendEvent(name: "vinculoPlaca", value: v) } }
+
+private String boardCheck(boolean ligado, String esperada, boolean pendente, String lida){
+if (!ligado) return "SKIP"
+if (esperada == null) return (lida != null) ? "MATCH" : "SKIP" 
+if (pendente) return (lida != null) ? "MATCH" : "UNKNOWN" 
+if (lida == null) return "UNKNOWN"
+return (lida == esperada) ? "MATCH" : "MISMATCH"
+}
+
+private boolean applyBoardCheck(String lida){
+ensureBoundIp()
+String ip = resolveIP()
+String esp = expectedSn()
+boolean pend = (esp != null) && state.boundIp && (state.boundIp != ip) 
+switch (boardCheck(autoFindOn(), esp, pend, lida)){
+case "SKIP":
+publishVinculo(autoFindOn() ? VINC_NOSN : VINC_OFF)
+return true
+case "MATCH":
+if (esp == null || pend){
+if (esp != lida) logInf("Placa vinculada: série ${lida}" + (esp ? " (antes ${esp})" : ""))
+state.NumeroSerie = lida
+}
+state.boundIp = ip
+state.idMiss = 0
+cancelScan()
+publishVinculo(VINC_OK)
+return true
+case "MISMATCH":
+String dif = "placa diferente neste IP (série ${lida}; esperada ${esp}) — use Vincular Placa para vincular a esta".toString()
+if (state.vinc != dif) logWar("A placa em ${ip} tem a série ${lida}; este dispositivo está vinculado à série ${esp}. Não conecto. Procurando a placa certa; para vincular a esta, use Vincular Placa.") 
+publishVinculo(dif)
+maybeStartScan(true)
+return false
+default: 
+state.idMiss = ((state.idMiss ?: 0) as int) + 1
+if (pend){ publishVinculo(VINC_WAIT); return false } 
+if (!(state.vinc ?: "").startsWith("placa diferente")) publishVinculo(vinculoBusca() ?: VINC_NOCONF)
+maybeStartScan(false)
+return false
+}
+}
+
+
+private boolean linkBlocked(String oque, boolean avisar = true){
+if (!linkActive()) return false
+String v = state.vinc
+if (v == null || v == VINC_OK) return false
+if (avisar) logWar("${oque} recusado: a placa deste IP ainda não foi confirmada (vinculoPlaca = ${v})")
+return true
+}
+ 
+private String vinculoBusca(){
+String esp = expectedSn()
+if (state.scan) return "procurando a placa (série ${esp})…".toString()
+if (state.scanMiss) return "procurando a placa (série ${esp}) — última busca ${state.scanMiss}, não encontrada".toString()
+return null
+}
+private void releaseLease(){
+String me = device.id.toString()
+Map l = SCAN_LEASE.get("l") as Map
+if (l != null && l.dev == me) SCAN_LEASE.remove("l", l)
+}
+private void cancelScan(){
+if (state.scan){
+boolean mini = ((state.scan as Map)?.mini == true)
+releaseLease(); SCAN_CNT.remove(device.id.toString()); state.remove("scan"); unschedule("scanTick")
+if (!mini) state.remove("lastScanAt") 
+}
+state.remove("scanMiss")
+}
+private void scanEnd(boolean achou){
+boolean mini = ((state.scan as Map)?.mini == true)
+releaseLease(); SCAN_CNT.remove(device.id.toString()); state.remove("scan"); unschedule("scanTick")
+if (!achou && mini){ String e = expectedSn(); if (e) SEEN.remove(e); return } 
+if (!achou){
+state.scanMiss = new Date().format("HH:mm", location.timeZone)
+logWar("Busca terminada: a placa (série ${expectedSn()}) não foi encontrada na sub-rede. Nova busca em ${prefInt('findEveryMin', 30, 5, 1440)} min.")
+if (!(state.vinc ?: "").startsWith("placa diferente")) publishVinculo(vinculoBusca())
+}
+}
+
+private void maybeStartScan(boolean agora){
+if (state.scan) return
+if (!agora && ((state.idMiss ?: 0) as int) < prefInt("findAfterFails", 3, 1, 20)) return
+String esp = expectedSn(); String ip = resolveIP()
+if (!esp || !ip) return
+
+
+Map seen = SEEN.get(esp) as Map
+if (seen != null && (now() - (seen.at as Long)) < SEEN_FRESH_MS && (seen.ip as String) != ip){ probeCandidate(seen.ip as String); return }
+long every = prefInt("findEveryMin", 30, 5, 1440) * 60000L
+if (state.lastScanAt && (now() - (state.lastScanAt as Long)) < every) return
+if (!(ip ==~ /\d{1,3}(\.\d{1,3}){3}/)){ logWar("Busca da placa: o IP configurado (${ip}) não é um IPv4 — sem busca."); return }
+String me = device.id.toString()
+
+Map lease = SCAN_LEASE.get("l") as Map
+Map novo = [dev: me, at: now()]
+boolean got
+if (lease == null) got = (SCAN_LEASE.putIfAbsent("l", novo) == null)
+else if ((now() - (lease.at as Long)) >= SCAN_LEASE_MS || lease.dev == me) got = SCAN_LEASE.replace("l", lease, novo)
+else got = false
+if (!got) return 
+int id = ((state.scanSeq ?: 0) as int) + 1
+state.scanSeq = id
+state.lastScanAt = now()
+state.remove("scanMiss")
+state.scan = [id: id, base: ip.tokenize(".").take(3).join("."), next: 1]
+java.util.concurrent.ConcurrentHashMap c = new java.util.concurrent.ConcurrentHashMap()
+c.putAll([id: id, sent: 0, done: 0, last: now()])
+SCAN_CNT.put(me, c)
+logWar("Procurando a placa (série ${esp}) na sub-rede ${state.scan.base}.x…")
+if (!(state.vinc ?: "").startsWith("placa diferente")) publishVinculo(vinculoBusca())
+runIn(_rng.nextInt(20) + 1, "scanTick")
+}
+
+
+
+private void probeCandidate(String cand){
+int id = ((state.scanSeq ?: 0) as int) + 1
+state.scanSeq = id
+state.scan = [id: id, base: cand.tokenize(".").take(3).join("."), next: 255, mini: true]
+java.util.concurrent.ConcurrentHashMap c = new java.util.concurrent.ConcurrentHashMap()
+c.putAll([id: id, sent: 1, done: 0, last: now()])
+SCAN_CNT.put(device.id.toString(), c)
+try { asynchttpGet("scanCallback", [uri: "http://${cand}/get/sn.cgi".toString(), timeout: 2], [id: id, ip: cand]) }
+catch (e) { c.put("done", 1) }
+runIn(1, "scanTick")
+}
+def scanTick(){
+Map sc = state.scan as Map
+if (!sc) return
+Map c = SCAN_CNT.get(device.id.toString()) as Map
+if (c == null || (c.id as Integer) != (sc.id as Integer)){ scanEnd(false); return } 
+if ((now() - (c.last as Long)) > 30000L){ scanEnd(false); return } 
+int n = sc.next as int
+int infl = (c.sent as int) - (c.done as int)
+while (infl < FIND_WINDOW && n <= 254){
+String alvo = "${sc.base}.${n}".toString()
+try {
+asynchttpGet("scanCallback", [uri: "http://${alvo}/get/sn.cgi".toString(), timeout: 2], [id: sc.id, ip: alvo])
+c.merge("sent", 1) { a, b -> a + b }; c.put("last", now()); infl++; n++
+} catch (e) {
+logDbg("busca: envio a ${alvo} falhou (${e}); repete no próximo segundo")
+break
+}
+}
+sc.next = n
+state.scan = sc
+
+if (n <= 254 || (infl > 0 && (now() - (c.last as Long)) < 10000L)) runIn(1, "scanTick")
+else scanEnd(false)
+}
+def scanCallback(resp, Map data){
+String lida = snFromResponse(resp)
+if (lida) SEEN.put(lida, [ip: data?.ip, at: now()]) 
+Map c = SCAN_CNT.get(device.id.toString()) as Map
+if (c != null && (c.id as Integer) == (data?.id as Integer)) c.merge("done", 1) { a, b -> a + b }
+Map sc = state.scan as Map
+if (!sc || (sc.id as Integer) != (data?.id as Integer)) return 
+if (!lida || lida != expectedSn()) return
+if ((data.ip as String) == resolveIP()){ scanEnd(true); return } 
+boardFound(data.ip as String)
+}
+
+private void boardFound(String ipNovo){
+String ipAntigo = resolveIP()
+int port = resolvePort() as int
+scanEnd(true)
+disconnectSocket() 
+state.idMiss = 0
+state.remove("verify"); unschedule("verifyTimeout")
+device.updateSetting("ipAddress", [value: ipNovo, type: "text"])
+state.boundIp = ipNovo
+if (state.frameEp == "${ipAntigo}:${port}".toString()) state.frameEp = "${ipNovo}:${port}".toString() 
+state.conIp = ipNovo
+String quando = new Date().format("dd/MM/yyyy HH:mm", location.timeZone)
+sendEvent(name: "ultimaTrocaIp", value: "${ipAntigo} → ${ipNovo} em ${quando}".toString())
+logWar("Placa (série ${expectedSn()}) encontrada em ${ipNovo}; antes ${ipAntigo}. IP atualizado — confira a reserva de DHCP.")
+unschedule("doReconnect")
+state.reconnecting = true 
+runIn(1, "doReconnect")
+runIn(1 + GUARD_EXTRA_S, "reconnectGuard", [overwrite:true]) 
+}
+
+def vincularPlaca(){
+String ip = resolveIP()
+if (!ip){ logWar("Vincular Placa: IP não configurado."); return }
+String lida = null
+try {
+httpGet([ uri: "http://${ip}/get/sn.cgi", headers: httpHeaders(), timeout: 5 ]) { resp ->
+def d = resp.data
+lida = (d instanceof Map) ? (d.sn != null ? d.sn.toString().trim() : null) : extractSnFlexible(d?.toString())
+}
+} catch (e) { logDbg("Vincular Placa: sn.cgi falhou: ${e}") }
+if (!lida){
+logWar("Vincular Placa: a placa em ${ip} não respondeu o número de série — nada mudou.")
+return
+}
+String antes = expectedSn()
+state.NumeroSerie = lida
+state.boundIp = ip
+logInf("Vincular Placa: dispositivo vinculado à série ${lida} em ${ip}" + ((antes && antes != lida) ? " (antes ${antes})" : ""))
+initialize()
+}
  
 
 
@@ -515,7 +753,7 @@ sendEvent(name: "contactQualify", value: buildContactQualifyString())
 publishStuckAttributeUnconditional()
 initialize()
 }
-def uninstalled(){ unschedule(); disconnectSocket() }
+def uninstalled(){ unschedule(); state.remove("verify"); cancelScan(); disconnectSocket() }
 def initialize(){
 logInf("Initialize")
 state.syncRetry = 0 
@@ -524,6 +762,8 @@ state.reconnecting = false
 initRxStats() 
 state.remove("prunePlan") 
 unschedule("continuePrune") 
+state.remove("verify"); unschedule("verifyTimeout") 
+cancelScan() 
 
 if (!settings?.ipAddress && settings?.device_IP_address){
 device.updateSetting("ipAddress", [value: settings.device_IP_address.trim(), type: "text"])
@@ -541,7 +781,17 @@ state.socketOnline = false
 return
 }
 Integer ch = null
+state.remove("snRead")
 try { ch = discoverChannelCount() as Integer } catch (e) { logWar("discoverChannelCount falhou: ${e}") }
+
+
+boolean conecta = applyBoardCheck(state.snRead as String)
+state.remove("snRead")
+if (!conecta){
+disconnectSocket() 
+scheduleReconnect("placa não confirmada")
+return
+}
 if (!ch || ch <= 0){
 logWar("Quantidade de canais desconhecida. Use o comando 'Detect & Sync Channels'.")
 state.httpUnknown = true
@@ -590,6 +840,7 @@ if (sec < 5) sec = 5
 runIn(sec, 'pwrPollTick', [overwrite:true])
 }
 private void doAsyncPwrQuery(){
+if (linkBlocked("Leitura de tensão", false)) return 
 String ip = resolveIP()
 if (!ip){ logWar("pwr.cgi: IP não configurado."); return }
 Map params = [ uri: "http://${ip}/api/v2/pwr.cgi", headers: httpHeaders(), timeout: 5 ]
@@ -679,7 +930,7 @@ logInf("Socket conectado a ${ip}:${port}")
 state.reconnectAttempt = 0
 
 
-unschedule("doReconnect"); state.reconnecting = false
+unschedule("doReconnect"); unschedule("reconnectGuard"); state.reconnecting = false
 scheduleHeartbeat(); scheduleWatchdog(); scheduleReconcile(); runIn(1, "heartbeat", [overwrite:true])
 } catch(e){
 logErr("Falha ao conectar em ${ip}:${port}: ${e}")
@@ -752,9 +1003,67 @@ int maxS = prefInt("reconnectMax", 60, 5, 600)
 int delay = Math.min(maxS, (int)Math.pow(2D, Math.min(6,attempt-1)) * minS) + _rng.nextInt(Math.max(1, minS))
 logWar("Reconectar (#${attempt}) em ~${delay}s (${reason})")
 runIn(delay, "doReconnect", [overwrite:true])
+runIn(delay + GUARD_EXTRA_S, "reconnectGuard", [overwrite:true]) 
 if (closeSocket) disconnectSocket() else markSocketOffline() 
 }
-def doReconnect(){ state.reconnecting = false; connectSocket() }
+
+
+
+
+
+def reconnectGuard(){
+if (state.socketOnline == true || !resolveIP()) return
+Map v = state.verify as Map
+if (v != null && (now() - ((v.at ?: 0L) as Long)) < 30000L){ 
+runIn(GUARD_EXTRA_S, "reconnectGuard", [overwrite:true]); return 
+}
+logWar("Reconexão parada: a tentativa agendada não aconteceu. Retomando sozinho.")
+state.reconnecting = false
+scheduleReconnect("reconexão parada")
+}
+def doReconnect(){ state.reconnecting = false; verifyThenConnect() }
+
+private void verifyThenConnect(){
+ensureBoundIp() 
+String ip = resolveIP()
+if (!ip || !linkActive()){ connectSocket(); return } 
+Map v = state.verify as Map
+if (v != null && (now() - ((v.at ?: 0L) as Long)) < 30000L) return 
+int gen = ((state.verifyGen ?: 0) as int) + 1
+state.verifyGen = gen
+state.verify = [gen: gen, ip: ip, at: now()]
+runIn(15, "verifyTimeout", [overwrite: true, data: [gen: gen]]) 
+try {
+asynchttpGet("verifyCallback", [uri: "http://${ip}/get/sn.cgi".toString(), timeout: 5], [gen: gen, ip: ip])
+} catch (e) {
+state.remove("verify"); unschedule("verifyTimeout")
+logWar("Conferência da série não pôde ser enviada: ${e}")
+scheduleReconnect("conferência não pôde ser enviada")
+}
+}
+def verifyCallback(resp, Map data){
+Map v = state.verify as Map
+
+if (v == null || (v.gen as Integer) != (data?.gen as Integer) || (data?.ip as String) != resolveIP()) return
+state.remove("verify"); unschedule("verifyTimeout")
+if (applyBoardCheck(snFromResponse(resp))) connectSocket()
+else scheduleReconnect("placa não confirmada")
+}
+def verifyTimeout(Map data){ 
+Map v = state.verify as Map
+if (v == null || (v.gen as Integer) != (data?.gen as Integer)) return
+state.remove("verify")
+scheduleReconnect("conferência sem resposta")
+}
+
+private String snFromResponse(resp){
+try {
+if ((resp?.status as Integer) != 200) return null
+def d = resp.getData()
+if (d instanceof Map) return (d.sn != null) ? d.sn.toString().trim() : null
+return extractSnFlexible(d?.toString())
+} catch (e) { return null }
+}
 def socketStatus(String message){
 logWar("socketStatus: ${message}")
 boolean rebooting = false
@@ -1237,8 +1546,8 @@ def js2 = (Map)resp2.data
 if (js2?.sn != null) snVal = js2.sn.toString().trim()
 }
 if (snVal) {
-state.NumeroSerie = snVal
-logInf("Número de série detectado: ${snVal}")
+state.snRead = snVal 
+logDbg("Número de série lido: ${snVal}")
 } else {
 logDbg("SN não encontrado no conteúdo de sn.cgi: ${raw2}")
 }
@@ -1358,6 +1667,7 @@ return s.isInteger() ? s.toInteger() : null
  
 
 def detectAndSyncChannels(){
+if (linkBlocked("Detect And Sync")){ publishSyncStatus("recusado: a placa deste IP não foi confirmada — veja vinculoPlaca"); return }
 Map plan = state.prunePlan as Map
 if (plan?.status == "em execução"){ 
 publishSyncStatus("apagando: lote ${((plan.lotes ?: 0) as int) + 1} de ${lotTotal(plan)} — aguarde")
@@ -1501,12 +1811,14 @@ else logWar("setChannelName: child para canal ${ch} não encontrado")
 }
  
 def on(){
+if (linkBlocked("On geral")) return 
 if (settings?.allowMasterOnOff == false){ logWar("On geral bloqueado nas Preferences (Permitir ligar/desligar todos os relés pelo dispositivo principal) — nada foi enviado à placa"); return }
 if (masterCount() <= 0){ logWar("ON cancelado: canais desconhecidos. Use 'Detect & Sync Channels'."); return }
 masteron()
 sendEvent(name:"switch", value:"on")
 }
 def off(){
+if (linkBlocked("Off geral")) return 
 if (settings?.allowMasterOnOff == false){ logWar("Off geral bloqueado nas Preferences (Permitir ligar/desligar todos os relés pelo dispositivo principal) — nada foi enviado à placa"); return }
 if (masterCount() <= 0){ logWar("OFF cancelado: canais desconhecidos. Use 'Detect & Sync Channels'."); return }
 masteroff()
@@ -1514,6 +1826,8 @@ sendEvent(name:"switch", value:"off")
 }
  
 def sendRebootLAN(){
+if (linkBlocked("Reinício da placa")) return
+state.idMiss = 0 
 String ip = resolveIP()
 if (!ip){ logWar("sendRebootLAN: IP não configurado."); return }
 Map params = [ uri: "http://${ip}/reboot.cgi", headers: httpHeaders(), timeout: 5 ]
@@ -1566,6 +1880,7 @@ unschedule("doReconnect")
 if (origin == "socketStatus") markSocketOffline() else disconnectSocket()
 try { sendRebootLAN() } catch(e) { logWar("Falha ao enviar reboot LAN: ${e}") }
 runIn(30, "initialize", [overwrite: true])
+runIn(30 + GUARD_EXTRA_S, "reconnectGuard", [overwrite: true]) 
 return true
 }
 return false

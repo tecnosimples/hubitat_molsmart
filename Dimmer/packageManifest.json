@@ -1,0 +1,19 @@
+{
+  "packageName": "MolSmart Dimmer TCP",
+  "author": "TecnoSimples Tecnologia LTDA",
+  "version": "1.0.2",
+  "minimumHEVersion": "2.3.0",
+  "dateReleased": "2026-10-27",
+  "licenseFile": "https://raw.githubusercontent.com/tecnosimples/hubitat_molsmart/main/LICENSE",
+  "drivers": [
+    {
+      "id": "e31985c3-e6c5-4e8c-bb8e-11f39ac3fd14",
+      "name": "TecnoSimples - MolSmart Dimmer TCP",
+      "namespace": "TecnoSimples",
+      "location": "https://raw.githubusercontent.com/tecnosimples/hubitat_molsmart/main/Dimmer/MolSmart-Dimmer-TCP.groovy",
+      "required": true,
+      "version": "1.0.2",
+      "description": "Dimmer MolSmart 6 canais (TCP): um device filho por canal."
+    }
+  ]
+}

@@ -4,6 +4,17 @@
   "payPalUrl": "",
   "packages": [
     {
+      "name": "MolSmart Dimmer TCP",
+      "category": "Integrations",
+      "location": "https://raw.githubusercontent.com/tecnosimples/hubitat_molsmart/main/Dimmer/packageManifest.json",
+      "description": "Driver local (TCP) para o dimmer MolSmart de 6 canais: nível de cada canal, rampa e feedback da tecla. Fork TecnoSimples do driver de VH, licença Apache 2.0.",
+      "tags": [
+        "MolSmart",
+        "Local",
+        "Integrations"
+      ]
+    },
+    {
       "name": "MolSmart GW8",
       "category": "Integrations",
       "location": "https://raw.githubusercontent.com/tecnosimples/hubitat_molsmart/main/GW8/IR/AC(Learning)/packageManifest.json",

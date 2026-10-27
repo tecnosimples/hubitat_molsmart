@@ -1,0 +1,19 @@
+{
+  "packageName": "MolSmart Input Board",
+  "author": "TecnoSimples Tecnologia LTDA",
+  "version": "1.0.1",
+  "minimumHEVersion": "2.3.0",
+  "dateReleased": "2026-10-27",
+  "licenseFile": "https://raw.githubusercontent.com/tecnosimples/hubitat_molsmart/main/LICENSE",
+  "drivers": [
+    {
+      "id": "86cbc1b6-5d8c-44b2-899f-06b61f918ba9",
+      "name": "TecnoSimples - MolSmart Input Board TCP",
+      "namespace": "TecnoSimples",
+      "location": "https://raw.githubusercontent.com/tecnosimples/hubitat_molsmart/main/drivers/MolSmart-InputBoard-TCP.groovy",
+      "required": true,
+      "version": "1.0.1",
+      "description": "Placa de entradas MolSmart 12+4 (TCP): um device filho por entrada."
+    }
+  ]
+}

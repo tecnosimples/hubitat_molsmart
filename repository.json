@@ -26,6 +26,17 @@
       ]
     },
     {
+      "name": "MolSmart Input Board",
+      "category": "Integrations",
+      "location": "https://raw.githubusercontent.com/tecnosimples/hubitat_molsmart/main/inputboard/packageManifest.json",
+      "description": "Driver local (TCP) para a placa de entradas MolSmart 12+4: 12 entradas digitais (contato e botão) e 4 analógicas. Fork TecnoSimples do driver de VH, licença Apache 2.0.",
+      "tags": [
+        "MolSmart",
+        "Local",
+        "Integrations"
+      ]
+    },
+    {
       "name": "MolSmart Relay TCP",
       "category": "Integrations",
       "location": "https://raw.githubusercontent.com/tecnosimples/hubitat_molsmart/main/packageManifest.json",

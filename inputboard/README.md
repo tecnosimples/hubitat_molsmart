@@ -28,8 +28,14 @@ Nunca use o **Uninstall** do HPM nem apague o driver do VH: os devices ficariam 
 3. Abra o device e dê **Save Preferences** (grava os padrões novos). Se esquecer, o driver migra sozinho no primeiro
    dado da placa.
 4. Confira no device: `driverVersion` = versão TecnoSimples instalada, `online = true` e `vinculoPlaca = ok`.
-5. **Com o HPM:** depois da troca, use **Match Up** no HPM. Instalar o pacote direto cria um driver novo, e o device
-   continua no do VH.
+5. **Com o HPM:** depois da troca, faça o HPM rastrear o nosso pacote. Instalar o pacote direto cria um driver novo,
+   e o device continua no do VH.
+   - Se o driver do VH foi instalado pelo HPM (pacote `MolSmart - 12+4 Input Board`): HPM → *Package Manager Settings*
+     → **Remove a Matched Package** → marque **só** `MolSmart - 12+4 Input Board` → confira a tela de confirmação →
+     *Next*. O HPM deixa de rastrear o pacote do VH; o código e os devices ficam. Sem isso, o Match Up não oferece o
+     nosso pacote, e um Update do pacote do VH sobrescreveria o driver.
+   - HPM → **Match Up**, com **Fast Match desligado** → marque **só** `MolSmart Input Board`, com *Assume that packages
+     are up-to-date* ligado → *Next*.
 6. **Regras:** agora um toque é **ou** `pushed` **ou** `held`, nunca os dois. Regras que contavam com `held` e
    `pushed` no mesmo toque precisam de ajuste.
 

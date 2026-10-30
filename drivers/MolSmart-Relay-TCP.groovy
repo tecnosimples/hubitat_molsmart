@@ -15,7 +15,7 @@
  * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
  * for the specific language governing permissions and limitations under the License.
  *
- * Versão do pacote: 1.3.5
+ * Versão do pacote: 3.0.0
  *
  * Versões TecnoSimples:
  *   TS-1.0.0  20/07/2026  Fork do VH 3.6
@@ -27,6 +27,10 @@
  *   TS-1.3.0  10/08/2026  Qualificação do sinal das entradas
  *   TS-1.3.1  10/09/2026  Tela para o integrador e robustez
  *   TS-1.3.2  21/09/2026  Parser e restauração de relés após reinício da placa
+ *   TS-1.3.3  28/09/2026  Migração de filhos vindos do VH 2.7 / TS-2.8
+ *   TS-1.3.4  28/09/2026  Preferência vazia volta ao padrão da tela
+ *   TS-1.3.5  05/10/2026  Placa vinculada pelo número de série e IP redescoberto sozinho
+ *   TS-3.0.0  29/10/2026  Versão única nos dois canais (pacote TecnoSimples e repositório do VH); sem mudança de comportamento
  */
  
 import groovy.transform.Field
@@ -131,7 +135,7 @@ input(name: "secPorEntrada", type: "hidden", title: "<hr><i>Os campos por canal 
 
 @Field static java.util.Random _rng = new java.util.Random()
 @Field static final String TCP_TERMINATOR = "NONE"
-@Field static final String DRIVER_VERSION = "TS-1.3.5"
+@Field static final String DRIVER_VERSION = "TS-3.0.0"
 
 
 @Field static final int MAX_CHANNELS = 32

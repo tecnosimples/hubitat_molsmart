@@ -15,11 +15,12 @@
  * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
  * for the specific language governing permissions and limitations under the License.
  *
- * Versão do pacote: 1.0.1
+ * Versão do pacote: 3.0.0
  *
  * Versões TecnoSimples:
  *   TS-1.0.0  26/10/2026  Fork do VH v2.3: botões, reconexão, vínculo pela série e migração no lugar
  *   TS-1.0.1  27/10/2026  Refresh dos filhos (componentRefresh); publicação no HPM
+ *   TS-3.0.0  29/10/2026  Versão única nos dois canais (pacote TecnoSimples e repositório do VH); sem mudança de comportamento
  */
  
 import groovy.transform.Field
@@ -102,7 +103,7 @@ input(name: "txtEnable", type: "bool", title: "Registrar no log cada botão e ca
 <p><b>Atributos</b>: <i>online</i> (true/false; <i>boardStatus</i> e <i>connectionStatus</i> repetem como online/offline), <i>lastRx</i> (hora da última leitura válida), <i>vinculoPlaca</i>, <i>driverVersion</i>.</p></details>'''
 
 @Field static java.util.Random _rng = new java.util.Random()
-@Field static final String DRIVER_VERSION = "TS-1.0.1"
+@Field static final String DRIVER_VERSION = "TS-3.0.0"
 @Field static final String TCP_TERMINATOR = "LF" 
 @Field static final boolean RX_HEX = true 
 @Field static final int N_DI = 12

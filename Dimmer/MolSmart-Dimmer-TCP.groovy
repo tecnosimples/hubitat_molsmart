@@ -15,12 +15,13 @@
  * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
  * for the specific language governing permissions and limitations under the License.
  *
- * Versão do pacote: 1.0.2
+ * Versão do pacote: 3.0.0
  *
  * Versões TecnoSimples:
  *   TS-1.0.0  26/10/2026  Fork do VH 1.8: estado pelos níveis do frame, reconexão e vínculo pela série
  *   TS-1.0.1  26/10/2026  Migração do VH: nível acima de 100 corrigido
  *   TS-1.0.2  27/10/2026  Publicação no HPM
+ *   TS-3.0.0  29/10/2026  Versão única nos dois canais (pacote TecnoSimples e repositório do VH); sem mudança de comportamento
  */
  
 import groovy.transform.Field
@@ -78,7 +79,7 @@ description: 'Desligado (padrão). Ligue só para investigar um problema: o log 
 }
 }
 @Field static java.util.Random _rng = new java.util.Random()
-@Field static final String DRIVER_VERSION = "TS-1.0.2"
+@Field static final String DRIVER_VERSION = "TS-3.0.0"
 @Field static final long TX_GAP_MS = 50L 
 @Field static final int RAMP_STEP_MS = 300
 @Field static final long RAMP_MAX_MS = 20000L 

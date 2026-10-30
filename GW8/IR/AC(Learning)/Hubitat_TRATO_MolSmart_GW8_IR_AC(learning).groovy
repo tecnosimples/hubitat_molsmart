@@ -15,7 +15,7 @@
  * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
  * for the specific language governing permissions and limitations under the License.
  *
- * Versão do pacote: 1.8.1
+ * Versão do pacote: 3.0.0
  *
  * Versões TecnoSimples:
  *   TS-1.5  26/08/2026  Senha fora do state, query URL-encoded, modos ilegais fora do enum
@@ -23,6 +23,7 @@
  *   TS-1.7  22/09/2026  Diagnóstico confiável e health check que se recupera sozinho
  *   TS-1.8  22/09/2026  Identidade do pacote e importUrl do canal TecnoSimples
  *   TS-1.8.1 24/09/2026 Health check volta sozinho depois de atualizar pelo HPM sem Save
+ *   TS-3.0.0  29/10/2026  Versão única nos dois canais (pacote TecnoSimples e repositório do VH); sem mudança de comportamento
  */
  
 metadata {
@@ -65,7 +66,7 @@ attribute "gw8Version", "STRING"
 import groovy.transform.Field
 import groovy.json.JsonOutput
 @Field static final String DRIVER = "by TRATO"
-@Field static final String DRIVER_VERSION = "TS-1.8.1"
+@Field static final String DRIVER_VERSION = "TS-3.0.0"
 @Field static final String USER_GUIDE = "https://github.com/hhorigian/hubitat_MolSmart_GW8/tree/main/AC/Idoor"
 String fmtHelpInfo(String str) {
 String prefLink = "<a href='${USER_GUIDE}' target='_blank'>${str}<br><div style='font-size: 70%;'>${DRIVER}</div></a>"

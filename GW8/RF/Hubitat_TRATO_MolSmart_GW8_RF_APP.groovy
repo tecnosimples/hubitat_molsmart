@@ -15,16 +15,17 @@
  * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
  * for the specific language governing permissions and limitations under the License.
  *
- * Versão: 1.9
+ * Versão: 3.0.0
  *
  * Versões TecnoSimples:
  *   TS-1.9  24/09/2026  Sem o botão que apagava todas as cortinas; DNI sem IP; settings conferidas antes do Save
+ *   TS-3.0.0  29/10/2026  Versão única nos dois canais (pacote TecnoSimples e repositório do VH); sem mudança de comportamento
  */
  
 import groovy.json.JsonOutput
 import groovy.json.JsonSlurper
 import groovy.transform.Field
-@Field static final String APP_VERSION = "TS-1.9"
+@Field static final String APP_VERSION = "TS-3.0.0"
 
 @Field static final String CHILD_NAMESPACE = "TRATO"
 @Field static final String CHILD_TYPE_NAME = "MolSmart - GW8 - RF"

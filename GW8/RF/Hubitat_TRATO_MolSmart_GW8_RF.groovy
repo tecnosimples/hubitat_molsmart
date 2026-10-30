@@ -15,16 +15,17 @@
  * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
  * for the specific language governing permissions and limitations under the License.
  *
- * Versão: 1.9
+ * Versão: 3.0.0
  *
  * Versões TecnoSimples:
  *   TS-1.9  24/09/2026  Senha fora do state e do log; estado só com o GW8 confirmando (senha errada não conta);
  *                       botão 4 (PROG do motor) bloqueado; health check que se recupera sozinho
+ *   TS-3.0.0  29/10/2026  Versão única nos dois canais (pacote TecnoSimples e repositório do VH); sem mudança de comportamento
  */
  
 import groovy.transform.Field
 @Field static final List<String> ONLINE_ENUM = ["online","offline","unknown"]
-@Field static final String DRIVER_VERSION = "TS-1.9"
+@Field static final String DRIVER_VERSION = "TS-3.0.0"
 
 @Field static final Integer RC_ID = 51
 

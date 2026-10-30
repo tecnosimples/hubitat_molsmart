@@ -1,9 +1,9 @@
 {
   "packageName": "MolSmart GW8",
   "author": "TecnoSimples Tecnologia LTDA",
-  "version": "1.9",
+  "version": "3.0.0",
   "minimumHEVersion": "2.3.0",
-  "dateReleased": "2026-09-24",
+  "dateReleased": "2026-10-29",
   "licenseFile": "https://raw.githubusercontent.com/tecnosimples/hubitat_molsmart/main/LICENSE",
   "apps": [
     {
@@ -14,7 +14,7 @@
       "required": false,
       "oauth": false,
       "primary": false,
-      "version": "1.9",
+      "version": "3.0.0",
       "description": "Importa as cortinas RF gravadas no GW8 e cria um device para cada uma."
     }
   ],
@@ -25,7 +25,7 @@
       "namespace": "TRATO",
       "location": "https://raw.githubusercontent.com/tecnosimples/hubitat_molsmart/main/GW8/IR/AC(Learning)/Hubitat_TRATO_MolSmart_GW8_IR_AC(learning).groovy",
       "required": false,
-      "version": "1.8.1",
+      "version": "3.0.0",
       "description": "Ar-condicionado por infravermelho, com o controle já gravado no GW8 (learning)."
     },
     {
@@ -34,7 +34,7 @@
       "namespace": "TRATO",
       "location": "https://raw.githubusercontent.com/tecnosimples/hubitat_molsmart/main/GW8/RF/Hubitat_TRATO_MolSmart_GW8_RF.groovy",
       "required": false,
-      "version": "1.9",
+      "version": "3.0.0",
       "description": "Cortina RF pelo GW8: subir, parar e descer, com três botões filhos."
     }
   ]
